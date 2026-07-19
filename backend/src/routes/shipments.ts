@@ -239,7 +239,7 @@ router.post("/", writeRateLimit, async (req, res) => {
         .json({ error: "Validation error", details: err.errors });
     }
     log.error({ err }, "Error creating shipment");
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ error: "Internal server error", detail: err instanceof Error ? err.message : String(err) });
   }
 });
 
