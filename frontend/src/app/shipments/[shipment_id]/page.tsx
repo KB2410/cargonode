@@ -8,6 +8,7 @@ import {
   buildConfirmTx,
   buildCancelTx,
   submitSignedTx,
+  fundAccount,
   Shipment,
 } from "@/lib/api";
 import { useFreighter } from "@/hooks/useFreighter";
@@ -30,6 +31,52 @@ const STEP_LABELS = ["Escrowed", "Accepted", "In Transit", "Delivered", "Confirm
 const EXPLORER_BASE = process.env.NEXT_PUBLIC_STELLAR_NETWORK === "mainnet"
   ? "https://stellar.expert/public/tx"
   : "https://stellar.expert/testnet/tx";
+
+function DetailTokenFunder({ address }: { address: string }) {
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleFund = async () => {
+    setLoading(true);
+    setResult(null);
+    setError(null);
+    try {
+      const res = await fundAccount(address);
+      const parts = [];
+      if (res.xlm_funded) parts.push("XLM funded");
+      if (res.tokens_minted) parts.push(`${res.token_amount} test USDC minted`);
+      if (!res.tokens_minted && res.xlm_funded) parts.push("tokens not configured");
+      setResult(parts.join(" — "));
+    } catch (err: any) {
+      setError(err.message || "Funding failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (result && !error) {
+    return (
+      <div className="mb-6 p-3 rounded-lg bg-green-50 border border-green-200 flex items-center justify-between">
+        <p className="text-sm text-green-700">{result}</p>
+        <button onClick={handleFund} disabled={loading} className="text-xs text-green-600 underline">Fund again</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-6 p-3 rounded-lg bg-yellow-50 border border-yellow-200 flex items-center justify-between">
+      <div>
+        <p className="text-sm font-medium text-yellow-800">Need test tokens for this wallet?</p>
+        <p className="text-xs text-yellow-600">Get free XLM + 100 test USDC</p>
+      </div>
+      <button onClick={handleFund} disabled={loading} className="px-3 py-1.5 text-sm font-medium rounded-md bg-yellow-600 text-white hover:bg-yellow-700 disabled:opacity-50">
+        {loading ? "Funding..." : "Get Tokens"}
+      </button>
+      {error && <p className="mt-1 text-xs text-red-600 w-full">{error}</p>}
+    </div>
+  );
+}
 
 export default function ShipmentDetailPage() {
   const params = useParams();
@@ -102,7 +149,7 @@ export default function ShipmentDetailPage() {
         await submitSignedTx(shipmentId, signedXdr, submitStatus);
         setStatus(`${action} successful!`);
       } else {
-        setStatus(`${action} successful! (Demo mode — no on-chain transaction)`);
+        throw new Error("No transaction built. Fund your wallet with test tokens first.");
       }
 
       await loadShipment();
@@ -258,6 +305,8 @@ export default function ShipmentDetailPage() {
           <h3 className="text-lg font-semibold text-secondary mb-4">
             Actions
           </h3>
+
+          {(isDriver || isShipper) && <DetailTokenFunder address={address} />}
 
           <div className="flex gap-3 flex-wrap">
             {shipment.status === "created" && isDriver && (

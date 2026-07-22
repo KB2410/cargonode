@@ -433,13 +433,11 @@ router.post("/:shipment_id/accept", writeRateLimit, async (req, res) => {
 
       res.json({ shipment_id, xdr });
     } catch (xdrErr: any) {
-      log.warn({ err: xdrErr.message }, "XDR build failed for accept — returning DB-only");
-      // Update status in DB without on-chain tx
-      await pool.query(
-        `UPDATE shipments SET status = 'accepted', updated_at = NOW() WHERE shipment_id = $1`,
-        [shipment_id]
-      );
-      res.json({ shipment_id, xdr: null });
+      log.error({ err: xdrErr.message }, "XDR build failed for accept");
+      res.status(500).json({ 
+        error: "Wallet not funded. Click 'Get Test Tokens' on this page first.",
+        detail: xdrErr.message 
+      });
     }
   } catch (err) {
     if (err instanceof z.ZodError) {
@@ -491,12 +489,11 @@ router.post("/:shipment_id/confirm", writeRateLimit, async (req, res) => {
 
       res.json({ shipment_id, xdr });
     } catch (xdrErr: any) {
-      log.warn({ err: xdrErr.message }, "XDR build failed for confirm — returning DB-only");
-      await pool.query(
-        `UPDATE shipments SET status = 'confirmed', updated_at = NOW() WHERE shipment_id = $1`,
-        [shipment_id]
-      );
-      res.json({ shipment_id, xdr: null });
+      log.error({ err: xdrErr.message }, "XDR build failed for confirm");
+      res.status(500).json({ 
+        error: "Wallet not funded. Click 'Get Test Tokens' on this page first.",
+        detail: xdrErr.message 
+      });
     }
   } catch (err) {
     if (err instanceof z.ZodError) {
@@ -548,12 +545,11 @@ router.post("/:shipment_id/cancel", writeRateLimit, async (req, res) => {
 
       res.json({ shipment_id, xdr });
     } catch (xdrErr: any) {
-      log.warn({ err: xdrErr.message }, "XDR build failed for cancel — returning DB-only");
-      await pool.query(
-        `UPDATE shipments SET status = 'cancelled', updated_at = NOW() WHERE shipment_id = $1`,
-        [shipment_id]
-      );
-      res.json({ shipment_id, xdr: null });
+      log.error({ err: xdrErr.message }, "XDR build failed for cancel");
+      res.status(500).json({ 
+        error: "Wallet not funded. Click 'Get Test Tokens' on this page first.",
+        detail: xdrErr.message 
+      });
     }
   } catch (err) {
     if (err instanceof z.ZodError) {
