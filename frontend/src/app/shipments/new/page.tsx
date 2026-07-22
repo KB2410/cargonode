@@ -2,9 +2,67 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createShipment, submitSignedTx } from "@/lib/api";
+import { createShipment, submitSignedTx, fundAccount } from "@/lib/api";
 import { useFreighter } from "@/hooks/useFreighter";
 import { ConnectButton } from "@/components/ConnectButton";
+
+function TestTokenFunder({ address }: { address: string }) {
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleFund = async () => {
+    setLoading(true);
+    setResult(null);
+    setError(null);
+    try {
+      const res = await fundAccount(address);
+      const parts = [];
+      if (res.xlm_funded) parts.push("XLM funded");
+      if (res.tokens_minted) parts.push(`${res.token_amount} test USDC minted`);
+      if (!res.tokens_minted && res.xlm_funded) parts.push("test tokens not available");
+      setResult(parts.join(" — "));
+    } catch (err: any) {
+      setError(err.message || "Funding failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (result && !error) {
+    return (
+      <div className="mb-6 p-4 rounded-lg bg-green-50 border border-green-200">
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-green-700">{result}</p>
+          <button onClick={handleFund} disabled={loading} className="text-xs text-green-600 underline hover:text-green-800">
+            Fund again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-6 p-4 rounded-lg bg-yellow-50 border border-yellow-200">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-yellow-800">Need test tokens?</p>
+          <p className="text-xs text-yellow-600">Get free XLM + 100 test USDC for this address</p>
+        </div>
+        <button
+          onClick={handleFund}
+          disabled={loading}
+          className="px-3 py-1.5 text-sm font-medium rounded-md bg-yellow-600 text-white hover:bg-yellow-700 disabled:opacity-50"
+        >
+          {loading ? "Funding..." : "Get Test Tokens"}
+        </button>
+      </div>
+      {error && (
+        <p className="mt-2 text-xs text-red-600">{error}</p>
+      )}
+    </div>
+  );
+}
 
 export default function NewShipmentPage() {
   const router = useRouter();
@@ -98,6 +156,8 @@ export default function NewShipmentPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
+      {/* Fund Test Tokens */}
+      <TestTokenFunder address={address} />
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-secondary">New Shipment</h1>
         <p className="text-gray-600 mt-1">

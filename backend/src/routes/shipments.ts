@@ -85,6 +85,67 @@ function parseAmountToBigInt(amountStr: string): bigint {
 
 // --- Routes ---
 
+// Fund account: Friendbot XLM + deployer mints test tokens
+const FundSchema = z.object({ address: z.string().length(56) });
+
+router.post("/fund", writeRateLimit, async (req, res) => {
+  try {
+    const { address } = FundSchema.parse(req.body);
+
+    // 1. Fund XLM via Friendbot
+    const friendbotUrl = `https://friendbot.stellar.org?addr=${encodeURIComponent(address)}`;
+    const friendbotRes = await fetch(friendbotUrl);
+    if (!friendbotRes.ok) {
+      throw new Error(`Friendbot failed: ${friendbotRes.status} ${friendbotRes.statusText}`);
+    }
+
+    // 2. Mint 100 test tokens via deployer
+    const deployerSecret = process.env.DEPLOYER_SECRET_KEY;
+    const tokenContractId = config.usdcContractId;
+
+    if (!deployerSecret || !tokenContractId) {
+      log.warn("DEPLOYER_SECRET_KEY or USDC_CONTRACT_ID not set — skipping token mint");
+      return res.json({ xlm_funded: true, tokens_minted: false });
+    }
+
+    const deployerKeypair = StellarSdk.Keypair.fromSecret(deployerSecret);
+    const sourceAccount = await rpc.getAccount(deployerKeypair.publicKey());
+
+    const mintAmount = 100_000_000n; // 100 USDC (7 decimals)
+    const tokenContract = new StellarSdk.Contract(tokenContractId);
+
+    const tx = new StellarSdk.TransactionBuilder(sourceAccount, {
+      fee: StellarSdk.BASE_FEE,
+      networkPassphrase: config.networkPassphrase,
+    })
+      .addOperation(
+        tokenContract.call(
+          "mint",
+          StellarSdk.Address.fromString(address).toScVal(),
+          StellarSdk.nativeToScVal(mintAmount, { type: "i128" })
+        )
+      )
+      .setTimeout(180)
+      .build();
+
+    tx.sign(deployerKeypair);
+
+    const result = await submitSignedTx(tx.toXDR());
+
+    log.info({ address, tx_hash: result.hash }, "Account funded with XLM + tokens");
+
+    res.json({
+      xlm_funded: true,
+      tokens_minted: true,
+      token_amount: "100",
+      tx_hash: result.hash,
+    });
+  } catch (err: any) {
+    log.error({ err: err.message }, "Error funding account");
+    res.status(500).json({ error: err.message || "Funding failed" });
+  }
+});
+
 // List shipments for a user (requires address filter)
 router.get("/", readRateLimit, async (req, res) => {
   try {
